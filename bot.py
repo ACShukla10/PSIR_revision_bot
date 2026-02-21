@@ -6,6 +6,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from telegram import Bot
+from telegram.error import RetryAfter
 
 # ENV VARIABLES
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -26,24 +27,22 @@ def get_all_worksheets():
     creds = Credentials.from_service_account_info(GOOGLE_CREDS, scopes=scopes)
     client = gspread.authorize(creds)
 
-    # 🔥 NO DRIVE API — open directly by key
+    # Open directly by spreadsheet ID (NO Drive API)
     sheet = client.open_by_key(SPREADSHEET_ID)
-
     return sheet.worksheets()
 
 
 def safe_sample(series, n):
-    unique_vals = list(series.dropna().unique())
-    if len(unique_vals) <= n:
-        return unique_vals
-    return random.sample(unique_vals, n)
+    values = list(series.dropna().unique())
+    if len(values) <= n:
+        return values
+    return random.sample(values, n)
 
 
 def generate_book_questions(df):
     questions = []
     df = df.sample(frac=1).reset_index(drop=True)
 
-    # Need minimum data
     if df["Author"].nunique() < 4:
         return []
 
@@ -108,6 +107,26 @@ def generate_quote_questions(df):
     return questions
 
 
+async def send_poll_safe(bot, poll_data):
+    while True:
+        try:
+            await bot.send_poll(
+                chat_id=CHAT_ID,
+                question=poll_data["question"],
+                options=poll_data["options"],
+                type="quiz",
+                correct_option_id=poll_data["answer"],
+                is_anonymous=False
+            )
+            await asyncio.sleep(5)  # 5 second delay
+            break
+
+        except RetryAfter as e:
+            wait_time = int(e.retry_after)
+            print(f"Rate limited. Sleeping {wait_time} seconds...")
+            await asyncio.sleep(wait_time)
+
+
 async def main():
     bot = Bot(token=BOT_TOKEN)
     worksheets = get_all_worksheets()
@@ -129,17 +148,10 @@ async def main():
             continue
 
         await bot.send_message(chat_id=CHAT_ID, text=f"📘 {ws.title}")
+        await asyncio.sleep(5)
 
         for q in questions:
-            await bot.send_poll(
-                chat_id=CHAT_ID,
-                question=q["question"],
-                options=q["options"],
-                type="quiz",
-                correct_option_id=q["answer"],
-                is_anonymous=False
-            )
-            await asyncio.sleep(2)  # avoid Telegram flood limit
+            await send_poll_safe(bot, q)
 
 
 if __name__ == "__main__":
