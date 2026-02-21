@@ -26,8 +26,6 @@ def get_all_worksheets():
     scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     creds = Credentials.from_service_account_info(GOOGLE_CREDS, scopes=scopes)
     client = gspread.authorize(creds)
-
-    # Open directly by spreadsheet ID (NO Drive API)
     sheet = client.open_by_key(SPREADSHEET_ID)
     return sheet.worksheets()
 
@@ -46,19 +44,19 @@ def generate_book_questions(df):
     if df["Author"].nunique() < 4:
         return []
 
-    # First 5 → Ask author (book options)
+    # First 5 → "[Author] wrote which book?"
     for _, row in df.head(5).iterrows():
         correct = row["Book"]
         wrong = safe_sample(df[df["Author"] != row["Author"]]["Book"], 3)
         options = random.sample([correct] + wrong, len(wrong) + 1)
 
         questions.append({
-            "question": "Who wrote this book?",
+            "question": f"{row['Author']} wrote which book?",
             "options": [clean_option(o) for o in options],
             "answer": options.index(correct)
         })
 
-    # Next 5 → Ask book (author options)
+    # Next 5 → "Who is the author of [Book]?"
     for _, row in df.tail(5).iterrows():
         correct = row["Author"]
         wrong = safe_sample(df[df["Author"] != correct]["Author"], 3)
@@ -80,8 +78,20 @@ def generate_quote_questions(df):
     if df["Author"].nunique() < 4:
         return []
 
-    # First 5 → Ask author
+    # First 5 → "[Author] said which quote?"
     for _, row in df.head(5).iterrows():
+        correct = row["Quote"]
+        wrong = safe_sample(df[df["Author"] != row["Author"]]["Quote"], 3)
+        options = random.sample([correct] + wrong, len(wrong) + 1)
+
+        questions.append({
+            "question": f"{row['Author']} said which quote?",
+            "options": [clean_option(o) for o in options],
+            "answer": options.index(clean_option(correct))
+        })
+
+    # Next 5 → "Who said: <Quote>"
+    for _, row in df.tail(5).iterrows():
         correct = row["Author"]
         wrong = safe_sample(df[df["Author"] != correct]["Author"], 3)
         options = random.sample([correct] + wrong, len(wrong) + 1)
@@ -90,18 +100,6 @@ def generate_quote_questions(df):
             "question": f'Who said:\n"{clean_option(row["Quote"])}"',
             "options": [clean_option(o) for o in options],
             "answer": options.index(correct)
-        })
-
-    # Next 5 → Ask quote
-    for _, row in df.tail(5).iterrows():
-        correct = row["Quote"]
-        wrong = safe_sample(df[df["Author"] != row["Author"]]["Quote"], 3)
-        options = random.sample([correct] + wrong, len(wrong) + 1)
-
-        questions.append({
-            "question": f"Which quote belongs to {row['Author']}?",
-            "options": [clean_option(o) for o in options],
-            "answer": options.index(clean_option(correct))
         })
 
     return questions
@@ -118,7 +116,7 @@ async def send_poll_safe(bot, poll_data):
                 correct_option_id=poll_data["answer"],
                 is_anonymous=False
             )
-            await asyncio.sleep(5)  # 5 second delay
+            await asyncio.sleep(3)  # 3 second delay
             break
 
         except RetryAfter as e:
@@ -148,7 +146,7 @@ async def main():
             continue
 
         await bot.send_message(chat_id=CHAT_ID, text=f"📘 {ws.title}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
 
         for q in questions:
             await send_poll_safe(bot, q)
