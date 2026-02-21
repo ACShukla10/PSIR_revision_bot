@@ -2,7 +2,7 @@ name: Telegram Quiz Bot
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "40 11 * * *"
   workflow_dispatch:
 
 jobs:
