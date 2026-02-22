@@ -48,24 +48,34 @@ def generate_book_questions(df):
     for _, row in df.head(5).iterrows():
         correct = row["Book"]
         wrong = safe_sample(df[df["Author"] != row["Author"]]["Book"], 3)
-        options = random.sample([correct] + wrong, len(wrong) + 1)
+
+        raw_options = [correct] + wrong
+        random.shuffle(raw_options)
+
+        correct_index = raw_options.index(correct)
+        cleaned_options = [clean_option(o) for o in raw_options]
 
         questions.append({
             "question": f"{row['Author']} wrote which book?",
-            "options": [clean_option(o) for o in options],
-            "answer": options.index(correct)
+            "options": cleaned_options,
+            "answer": correct_index
         })
 
     # Next 5 → "Who is the author of [Book]?"
     for _, row in df.tail(5).iterrows():
         correct = row["Author"]
         wrong = safe_sample(df[df["Author"] != correct]["Author"], 3)
-        options = random.sample([correct] + wrong, len(wrong) + 1)
+
+        raw_options = [correct] + wrong
+        random.shuffle(raw_options)
+
+        correct_index = raw_options.index(correct)
+        cleaned_options = [clean_option(o) for o in raw_options]
 
         questions.append({
             "question": f"Who is the author of '{clean_option(row['Book'])}'?",
-            "options": [clean_option(o) for o in options],
-            "answer": options.index(correct)
+            "options": cleaned_options,
+            "answer": correct_index
         })
 
     return questions
@@ -82,24 +92,34 @@ def generate_quote_questions(df):
     for _, row in df.head(5).iterrows():
         correct = row["Quote"]
         wrong = safe_sample(df[df["Author"] != row["Author"]]["Quote"], 3)
-        options = random.sample([correct] + wrong, len(wrong) + 1)
+
+        raw_options = [correct] + wrong
+        random.shuffle(raw_options)
+
+        correct_index = raw_options.index(correct)
+        cleaned_options = [clean_option(o) for o in raw_options]
 
         questions.append({
             "question": f"{row['Author']} said which quote?",
-            "options": [clean_option(o) for o in options],
-            "answer": options.index(clean_option(correct))
+            "options": cleaned_options,
+            "answer": correct_index
         })
 
     # Next 5 → "Who said: <Quote>"
     for _, row in df.tail(5).iterrows():
         correct = row["Author"]
         wrong = safe_sample(df[df["Author"] != correct]["Author"], 3)
-        options = random.sample([correct] + wrong, len(wrong) + 1)
+
+        raw_options = [correct] + wrong
+        random.shuffle(raw_options)
+
+        correct_index = raw_options.index(correct)
+        cleaned_options = [clean_option(o) for o in raw_options]
 
         questions.append({
             "question": f'Who said:\n"{clean_option(row["Quote"])}"',
-            "options": [clean_option(o) for o in options],
-            "answer": options.index(correct)
+            "options": cleaned_options,
+            "answer": correct_index
         })
 
     return questions
@@ -116,7 +136,7 @@ async def send_poll_safe(bot, poll_data):
                 correct_option_id=poll_data["answer"],
                 is_anonymous=False
             )
-            await asyncio.sleep(3)  # 3 second delay
+            await asyncio.sleep(3)
             break
 
         except RetryAfter as e:
